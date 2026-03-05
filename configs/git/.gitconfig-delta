@@ -1,0 +1,30 @@
+# Delta diff viewer configuration — included by the installer
+# Add to your ~/.gitconfig with: [include] path = ~/.gitconfig-delta
+[core]
+    editor = nvim
+    pager = delta
+
+[interactive]
+    diffFilter = delta --color-only
+
+[delta]
+    navigate = true
+    line-numbers = true
+    side-by-side = true
+    syntax-theme = Catppuccin Mocha
+    dark = true
+    file-style = bold yellow ul
+    hunk-header-style = omit
+    minus-style = syntax #3B1219
+    minus-emph-style = syntax #56172A
+    plus-style = syntax #1A2B1F
+    plus-emph-style = syntax #2A4432
+
+[merge]
+    conflictstyle = zdiff3
+
+[diff]
+    colorMoved = default
+
+[pull]
+    rebase = true
