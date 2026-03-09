@@ -703,7 +703,8 @@ show_summary() {
         local elapsed="${INSTALL_TIMES[$i]:-0}"
 
         if [[ "$result" == "success" ]]; then
-            local time_str="installed in $(format_time $elapsed)"
+            local time_str
+            time_str="installed in $(format_time $elapsed)"
             _box_line "$GREEN" "  ${GREEN}✓${RESET} ${name}$(printf '%*s' $((24 - ${#name})) '')${DIM}${time_str}${RESET}"
         elif [[ "$result" == "failed" ]]; then
             _box_line "$GREEN" "  ${RED}✗${RESET} ${name}$(printf '%*s' $((24 - ${#name})) '')${RED}failed${RESET}"
@@ -930,7 +931,7 @@ main() {
     parse_args "$@"
 
     # Ensure scroll region is reset on exit (normal or error)
-    trap 'reset_scroll_region 2>/dev/null; tput cnorm 2>/dev/null' EXIT
+    trap 'reset_scroll_region 2>/dev/null; tput cnorm 2>/dev/null; true' EXIT
 
     # Apply pre-selected categories if provided via --categories
     if [[ -n "$PRE_SELECTED_CATEGORIES" ]]; then

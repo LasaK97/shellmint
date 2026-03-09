@@ -25,7 +25,8 @@ install_editor() {
         (
             mkdir -p "$HOME/.local/bin"
             local nvim_tag="${NEOVIM_VERSION:-stable}"
-            local nvim_url="https://github.com/neovim/neovim/releases/download/${nvim_tag}/nvim-linux-$(get_arch).appimage"
+            local nvim_url
+            nvim_url="https://github.com/neovim/neovim/releases/download/${nvim_tag}/nvim-linux-$(get_arch).appimage"
             curl -fsSL "$nvim_url" -o "$HOME/.local/bin/nvim"
             chmod +x "$HOME/.local/bin/nvim"
 
@@ -33,12 +34,12 @@ install_editor() {
             if ! "$HOME/.local/bin/nvim" --version &>/dev/null; then
                 local tmp_dir
                 tmp_dir="$(mktemp -d)"
-                cd "$tmp_dir"
+                cd "$tmp_dir" || return 1
                 "$HOME/.local/bin/nvim" --appimage-extract &>/dev/null
                 rm -f "$HOME/.local/bin/nvim"
                 mv squashfs-root "$HOME/.local/nvim-extracted"
                 ln -sf "$HOME/.local/nvim-extracted/usr/bin/nvim" "$HOME/.local/bin/nvim"
-                cd - > /dev/null
+                cd - > /dev/null || true
                 rm -rf "$tmp_dir"
             fi
 

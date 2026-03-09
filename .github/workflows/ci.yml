@@ -20,6 +20,8 @@ jobs:
         with:
           scandir: '.'
           severity: warning
+          exclude: './configs'
+          additional_files: 'install.sh uninstall.sh'
 
   dry-run:
     name: Dry Run Test

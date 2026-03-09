@@ -1,0 +1,11 @@
+# ShellCheck configuration for ShellMint
+# https://www.shellcheck.net/wiki/
+
+# SC1090: Can't follow non-constant source — we use dynamic paths for sourcing
+disable=SC1090
+
+# SC1091: Not following sourced file — ShellCheck can't resolve relative source paths
+disable=SC1091
+
+# SC2034: Variable appears unused — utils.sh defines colors/symbols used by other scripts
+disable=SC2034
