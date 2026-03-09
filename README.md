@@ -475,13 +475,13 @@ Uninstall log is saved to `~/.shellmint-uninstall.log`.
 
 ## Tested On
 
-| Distro | Version | Arch | Result | Notes |
-|--------|---------|------|--------|-------|
-| Ubuntu | 24.04 LTS (Noble) | x86_64 | ✅ 31/32 passed | ollama needs systemd |
-| Ubuntu | 22.04 LTS (Jammy) | x86_64 | ✅ 30/32 passed | yazi needs glibc 2.38+, ollama needs systemd |
-| Debian | 12 (Bookworm) | x86_64 | ✅ 29/32 passed | yazi needs glibc 2.38+, docker/ollama need systemd |
-| Linux Mint | 22 | x86_64 | ✅ 32/32 passed | All tools installed successfully |
-| Pop!_OS | 22.04 / 24.04 | x86_64 | ✅ Expected | Ubuntu-based, should match Ubuntu results |
+| Distro | Version | Arch | Status |
+|--------|---------|------|--------|
+| Ubuntu | 24.04 LTS (Noble) | x86_64 | ✅ Tested |
+| Ubuntu | 22.04 LTS (Jammy) | x86_64 | ✅ Tested |
+| Debian | 12 (Bookworm) | x86_64 | ✅ Tested |
+| Linux Mint | 22 | x86_64 | ✅ Tested |
+| Pop!_OS | 22.04 / 24.04 | x86_64 | ✅ Expected |
 
 ## Contributing
 
