@@ -42,13 +42,14 @@ install_dev_tools() {
             sudo apt-get update
             sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
         ) &>/dev/null &
-        if spinner $! "Installing Docker (this may take a minute)"; then
+        if spinner $! "Installing Docker (this may take a minute)" 300; then
             # Add user to docker group
             sudo usermod -aG docker "$USER" 2>/dev/null
             print_success "Docker installed (log out and back in for group changes)"
             (( installed++ ))
         else
             print_error "Failed to install Docker"
+            register_failure "Docker" "https://docs.docker.com/engine/install/ubuntu/"
             (( failed++ ))
         fi
     fi
@@ -68,6 +69,7 @@ install_dev_tools() {
             (( installed++ ))
         else
             print_error "Failed to install Rust"
+            register_failure "Rust" "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
             (( failed++ ))
         fi
     fi
@@ -80,9 +82,12 @@ install_dev_tools() {
     else
         (
             local go_version
-            go_version="$(curl -sL 'https://go.dev/VERSION?m=text' | head -1)"
+            go_version="$(curl -sL --max-time 10 'https://go.dev/VERSION?m=text' | head -1)"
+            if [[ -z "$go_version" ]]; then
+                go_version="${GO_VERSION:-go1.24.1}"
+            fi
             if [[ -n "$go_version" ]]; then
-                curl -fsSL "https://go.dev/dl/${go_version}.linux-amd64.tar.gz" -o /tmp/go.tar.gz
+                curl -fsSL "https://go.dev/dl/${go_version}.linux-$(get_deb_arch).tar.gz" -o /tmp/go.tar.gz
                 sudo rm -rf /usr/local/go
                 sudo tar -C /usr/local -xzf /tmp/go.tar.gz
                 rm -f /tmp/go.tar.gz
@@ -94,6 +99,7 @@ install_dev_tools() {
             (( installed++ ))
         else
             print_error "Failed to install Go"
+            register_failure "Go" "https://go.dev/doc/install"
             (( failed++ ))
         fi
     fi
@@ -119,6 +125,7 @@ install_dev_tools() {
             (( installed++ ))
         else
             print_error "Failed to install Node.js"
+            register_failure "Node.js" "https://github.com/nvm-sh/nvm#installing-and-updating"
             (( failed++ ))
         fi
     fi
@@ -135,6 +142,7 @@ install_dev_tools() {
             (( installed++ ))
         else
             print_error "Failed to install OpenJDK 17"
+            register_failure "OpenJDK 17" "sudo apt install openjdk-17-jdk"
             (( failed++ ))
         fi
     fi
@@ -151,6 +159,7 @@ install_dev_tools() {
             (( installed++ ))
         else
             print_error "Failed to install CMake"
+            register_failure "CMake" "sudo apt install cmake"
             (( failed++ ))
         fi
     fi
@@ -195,23 +204,6 @@ install_dev_tools() {
         fi
     fi
 
-    # ── pipx ─────────────────────────────────────────────────────────────────
-    print_step "Installing pipx"
-    if command_exists pipx; then
-        print_info "pipx is already installed"
-        (( skipped++ ))
-    else
-        sudo apt install -y pipx &>/dev/null &
-        if spinner $! "Installing pipx"; then
-            pipx ensurepath &>/dev/null 2>&1
-            print_success "pipx installed"
-            (( installed++ ))
-        else
-            print_error "Failed to install pipx"
-            (( failed++ ))
-        fi
-    fi
-
     # ── uv ───────────────────────────────────────────────────────────────────
     print_step "Installing uv (Python package manager)"
     if command_exists uv; then
@@ -220,10 +212,33 @@ install_dev_tools() {
     else
         curl -LsSf https://astral.sh/uv/install.sh | sh &>/dev/null &
         if spinner $! "Installing uv"; then
+            export PATH="$HOME/.local/bin:$PATH"
             print_success "uv installed"
             (( installed++ ))
         else
             print_error "Failed to install uv"
+            register_failure "uv" "curl -LsSf https://astral.sh/uv/install.sh | sh"
+            (( failed++ ))
+        fi
+    fi
+
+    # ── pipx (only if uv is unavailable) ─────────────────────────────────────
+    if command_exists uv; then
+        print_step "Skipping pipx (uv is available as a faster alternative)"
+        (( skipped++ ))
+    elif command_exists pipx; then
+        print_info "pipx is already installed"
+        (( skipped++ ))
+    else
+        print_step "Installing pipx"
+        sudo apt install -y pipx &>/dev/null &
+        if spinner $! "Installing pipx" 300; then
+            pipx ensurepath &>/dev/null 2>&1
+            print_success "pipx installed"
+            (( installed++ ))
+        else
+            print_error "Failed to install pipx"
+            register_failure "pipx" "sudo apt install pipx"
             (( failed++ ))
         fi
     fi

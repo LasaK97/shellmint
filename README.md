@@ -21,12 +21,36 @@
   <img src="assets/pic.png" alt="Terminal Setup Preview" width="900">
 </p>
 
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img src="assets/menu.png" alt="Category Selection Menu" width="400"><br>
+      <em>Interactive category selector</em>
+    </td>
+    <td align="center" width="50%">
+      <img src="assets/start_installer.png" alt="System Check" width="400"><br>
+      <em>System check & prerequisites</em>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <img src="assets/installing.png" alt="Installation Progress" width="400"><br>
+      <em>Progress bars & spinners</em>
+    </td>
+    <td align="center" width="50%">
+      <img src="assets/final.png" alt="Installation Complete" width="400"><br>
+      <em>Results & keybinding cheatsheet</em>
+    </td>
+  </tr>
+</table>
+
 ---
 
 ## Table of Contents
 
 - [What You Get](#what-you-get)
 - [Quick Start](#quick-start)
+  - [CLI Flags](#cli-flags)
 - [Prerequisites](#prerequisites)
 - [Changing Your Prompt Theme](#changing-your-prompt-theme)
 - [What Each Category Installs](#what-each-category-installs)
@@ -36,6 +60,7 @@
   - [Development Tools](#4-development-tools)
   - [Editor](#5-editor-neovim)
   - [ML/AI Stack](#6-mlai-stack)
+- [Version Pinning](#version-pinning)
 - [Configuration Files](#configuration-files)
 - [Customizing Keybindings](#customizing-keybindings)
 - [Shell Aliases Reference](#shell-aliases-reference)
@@ -56,9 +81,9 @@
 | **Shell** | Zsh, Oh My Zsh (7 plugins), Oh My Posh prompt, Atuin history |
 | **Terminal** | Kitty (GPU-accelerated), Hack Nerd Font |
 | **CLI Tools** | eza, bat, fd, ripgrep, fzf, zoxide, lazygit, btop, yazi, glow, dust, delta, zellij, direnv |
-| **Dev Tools** | Docker, Rust, Go, Node.js (nvm), Java 17, CMake, Git+Delta config, pipx, uv |
+| **Dev Tools** | Docker, Rust, Go, Node.js (nvm), Java 17, CMake, Git+Delta config, uv |
 | **Editor** | Neovim + LazyVim (Catppuccin theme, LSP, Treesitter) |
-| **ML/AI** | Miniconda, PyTorch+CUDA, Transformers, flash-attn, peft, trl, JupyterLab, Ollama, nvitop |
+| **ML/AI** | Miniconda, PyTorch+CUDA, JupyterLab, Ollama, nvitop |
 
 Everything is themed with **Catppuccin Mocha** — terminal, editor, fzf, bat, git diffs, man pages, and prompt.
 
@@ -76,9 +101,25 @@ The interactive installer will:
 3. Install everything with progress bars and spinners
 4. Show a summary when done
 
+### CLI Flags
+
+```bash
+./install.sh --help                # Show help and available options
+./install.sh --version             # Print version
+./install.sh --yes                 # Install all components non-interactively
+./install.sh --categories 1,3,5   # Install only Shell, CLI Tools, and Editor
+./install.sh --skip 6              # Install everything except ML/AI Stack
+./install.sh --dry-run             # Preview what would be installed (no changes)
+./install.sh --update              # Re-run to update tools to latest versions
+./install.sh --configs-only        # Only apply config files (skip tool installation)
+./install.sh --verbose             # Show detailed output during installation
+```
+
+Flags can be combined: `./install.sh --categories 1,3 --yes` installs Shell and CLI Tools without prompts.
+
 ## Prerequisites
 
-- **OS:** Ubuntu 22.04+ or Debian 12+ (x86_64)
+- **OS:** Ubuntu 22.04+ or Debian 12+ (x86_64 and aarch64/ARM64)
 - **Internet connection** for downloading packages
 - **sudo access** (the installer will prompt when needed)
 - **~5 GB free disk space** (more if installing ML stack with PyTorch)
@@ -106,7 +147,7 @@ This shows 20 popular themes to choose from. Browse all themes at [ohmyposh.dev/
   - [`fast-syntax-highlighting`](https://github.com/zdharma-continuum/fast-syntax-highlighting) — command syntax coloring
   - [`zsh-history-substring-search`](https://github.com/zsh-users/zsh-history-substring-search) — search history with arrow keys
   - [`zsh-autopair`](https://github.com/hlissner/zsh-autopair) — auto-close brackets and quotes
-  - [`zsh-you-should-use`](https://github.com/MichaelAqworthy/zsh-you-should-use) — reminds you of aliases you've defined
+  - [`zsh-you-should-use`](https://github.com/MichaelAquilina/zsh-you-should-use) — reminds you of aliases you've defined
   - [`zsh-completions`](https://github.com/zsh-users/zsh-completions) — extra completion definitions
   - [`fzf-tab`](https://github.com/Aloxaf/fzf-tab) — fuzzy completion with previews
 - [**Oh My Posh**](https://ohmyposh.dev/) — prompt engine with Catppuccin Mocha theme
@@ -152,8 +193,7 @@ Every tool replaces a legacy counterpart with a faster, more user-friendly alter
 - [**Java**](https://openjdk.org/) — OpenJDK 17
 - [**CMake**](https://cmake.org/documentation/) — build system
 - [**Git**](https://git-scm.com/doc) — configured with [delta](https://dandavison.github.io/delta/) as diff viewer (side-by-side, line numbers, Catppuccin theme)
-- [**pipx**](https://pipx.pypa.io/) — isolated Python CLI tools
-- [**uv**](https://docs.astral.sh/uv/) — fast Python package manager
+- [**uv**](https://docs.astral.sh/uv/) — fast Python package/project manager (replaces pip, pipx, virtualenv)
 
 ### 5. Editor (Neovim)
 
@@ -168,26 +208,28 @@ Every tool replaces a legacy counterpart with a faster, more user-friendly alter
 
 ### 6. ML/AI Stack
 
+Sets up the ML infrastructure. Project-specific libraries (transformers, pandas, scikit-learn, etc.) should be installed per-project in their own conda environments.
+
 - [**Miniconda**](https://docs.anaconda.com/miniconda/) — Python environment manager
-- [**PyTorch**](https://pytorch.org/docs/stable/) — with automatic CUDA detection
-- [**HuggingFace ecosystem**](https://huggingface.co/docs):
-  - [transformers](https://huggingface.co/docs/transformers/) — model library
-  - [tokenizers](https://huggingface.co/docs/tokenizers/) — fast tokenization
-  - [datasets](https://huggingface.co/docs/datasets/) — dataset loading
-  - [safetensors](https://huggingface.co/docs/safetensors/) — safe model serialization
-  - [accelerate](https://huggingface.co/docs/accelerate/) — distributed training
-- **Fine-tuning:**
-  - [bitsandbytes](https://github.com/bitsandbytes-foundation/bitsandbytes) — quantization (4-bit, 8-bit)
-  - [peft](https://huggingface.co/docs/peft/) — LoRA / QLoRA adapters
-  - [trl](https://huggingface.co/docs/trl/) — SFT / RLHF trainers
-- [**flash-attn**](https://github.com/Dao-AILab/flash-attention) — memory-efficient attention (2-4x faster, 5-20x less VRAM)
-- **Data science** — [scikit-learn](https://scikit-learn.org/stable/), [pandas](https://pandas.pydata.org/docs/), [numpy](https://numpy.org/doc/), [matplotlib](https://matplotlib.org/stable/contents.html)
-- [**JupyterLab**](https://jupyterlab.readthedocs.io/) — interactive notebooks
-- [**TensorBoard**](https://www.tensorflow.org/tensorboard) — training visualization
-- [**ONNX Runtime**](https://onnxruntime.ai/docs/) — model optimization and inference
-- [**sentence-transformers**](https://sbert.net/) — embedding models
+- [**PyTorch**](https://pytorch.org/docs/stable/) — with automatic CUDA detection (installed in a base `ml` conda env)
+- [**JupyterLab**](https://jupyterlab.readthedocs.io/) — interactive notebooks (installed in the `ml` conda env)
 - [**Ollama**](https://ollama.com/) — local LLM inference
 - [**nvitop**](https://github.com/XuehaiPan/nvitop) — GPU monitoring TUI
+
+## Version Pinning
+
+Tool versions are defined in `tool-versions.conf`. The installer tries to fetch the latest release from GitHub first and falls back to these pinned versions if the API is unreachable or rate-limited.
+
+To pin a specific version, edit the file:
+
+```bash
+# tool-versions.conf
+LAZYGIT_VERSION="0.44.1"
+DELTA_VERSION="0.18.2"
+NEOVIM_VERSION="stable"      # or a tag like "0.10.4"
+GO_VERSION="go1.24.1"        # include the "go" prefix
+NODE_LTS_VERSION="22"
+```
 
 ## Configuration Files
 
@@ -343,7 +385,7 @@ exec zsh
 
 ### flash-attn fails to build
 
-flash-attn requires a CUDA toolkit matching your PyTorch installation. Common fixes:
+flash-attn is not installed by ShellMint but is commonly needed for ML work. It requires a CUDA toolkit matching your PyTorch installation. Common fixes:
 
 1. Ensure `nvcc --version` matches the CUDA version PyTorch was built with
 2. Install build dependencies: `sudo apt install build-essential python3-dev`
@@ -372,6 +414,19 @@ If plugins aren't working after install:
 
 This is normal. LazyVim downloads and compiles plugins on the first run. Wait for it to finish (you'll see progress in the statusline), then restart Neovim. If errors persist, run `:checkhealth` inside Neovim to diagnose.
 
+### Behind a proxy or corporate firewall
+
+If downloads fail or time out, set your proxy environment variables before running the installer:
+
+```bash
+export http_proxy="http://proxy.example.com:8080"
+export https_proxy="http://proxy.example.com:8080"
+export no_proxy="localhost,127.0.0.1"
+./install.sh
+```
+
+If GitHub API calls are rate-limited (e.g., behind a shared IP), the installer falls back to known-good versions automatically.
+
 ### "Permission denied" during installation
 
 The installer needs `sudo` for system-level packages (apt, docker, etc.). If you see permission errors:
@@ -398,35 +453,35 @@ cp ~/.zshrc.backup.20260305_143022 ~/.zshrc
 
 ## Logs
 
-Installation output is logged to `~/.terminal-setup-install.log` for troubleshooting.
+Installation output is logged to `~/.shellmint-install.log` for troubleshooting.
 
 ## Uninstalling
 
-The installer doesn't provide an automatic uninstall. To remove components:
+ShellMint includes a selective uninstaller:
 
-| Component | Uninstall command |
-|-----------|-------------------|
-| Oh My Zsh | `uninstall_oh_my_zsh` |
-| Oh My Posh | `rm ~/.local/bin/oh-my-posh` |
-| Kitty | `rm -rf ~/.local/kitty.app` |
-| Neovim config | `rm -rf ~/.config/nvim ~/.local/share/nvim ~/.local/state/nvim` |
-| Neovim binary | `rm ~/.local/bin/nvim` |
-| Conda + envs | `rm -rf ~/miniconda3` |
-| Rust + cargo tools | `rustup self uninstall` |
-| Cargo tools only | `cargo uninstall zellij yazi-fm du-dust` |
-| Atuin | `rm -rf ~/.atuin` |
-| fzf | `rm -rf ~/.fzf && rm ~/.fzf.zsh` |
-| nvm + Node.js | `rm -rf ~/.nvm` |
-| Docker | `sudo apt remove docker-ce docker-ce-cli containerd.io` |
-| Ollama | `sudo rm /usr/local/bin/ollama` |
+```bash
+./uninstall.sh                    # Interactive — choose what to remove
+./uninstall.sh --all              # Select all categories, with per-category prompts
+./uninstall.sh --all --yes        # Remove everything non-interactively
+./uninstall.sh --configs-only     # Only restore backed-up configs (keep tools)
+```
+
+The uninstaller lets you choose per category whether to:
+- **Full remove** — uninstall tools and restore config backups
+- **Configs only** — restore backed-up configs but keep tools installed
+- **Skip** — leave that category untouched
+
+Uninstall log is saved to `~/.shellmint-uninstall.log`.
 
 ## Tested On
 
-| Distro | Version | Status |
-|--------|---------|--------|
-| Ubuntu | 24.04 LTS (Noble) | ✅ Tested |
-| Ubuntu | 22.04 LTS (Jammy) | ✅ Should work |
-| Debian | 12 (Bookworm) | ✅ Should work |
+| Distro | Version | Arch | Result | Notes |
+|--------|---------|------|--------|-------|
+| Ubuntu | 24.04 LTS (Noble) | x86_64 | ✅ 31/32 passed | ollama needs systemd |
+| Ubuntu | 22.04 LTS (Jammy) | x86_64 | ✅ 30/32 passed | yazi needs glibc 2.38+, ollama needs systemd |
+| Debian | 12 (Bookworm) | x86_64 | ✅ 29/32 passed | yazi needs glibc 2.38+, docker/ollama need systemd |
+| Linux Mint | 22 | x86_64 | ✅ 32/32 passed | All tools installed successfully |
+| Pop!_OS | 22.04 / 24.04 | x86_64 | ✅ Expected | Ubuntu-based, should match Ubuntu results |
 
 ## Contributing
 
@@ -445,7 +500,6 @@ This setup is built on top of amazing open-source projects:
 - [Oh My Posh](https://ohmyposh.dev/) — the cross-shell prompt engine
 - [LazyVim](https://www.lazyvim.org/) — the Neovim distribution that makes Neovim an IDE
 - [Kitty](https://sw.kovidgoyal.net/kitty/) — the GPU-accelerated terminal
-- [HuggingFace](https://huggingface.co/) — the ML ecosystem (transformers, peft, trl, accelerate)
 - All the CLI tool authors who make terminal life better
 
 ## License

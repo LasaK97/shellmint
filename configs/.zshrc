@@ -1,5 +1,5 @@
 # ─── PATH ──────────────────────────────────────────────────────────────────────
-export PATH="$HOME/bin:$HOME/.local/bin:$HOME/go/bin:/usr/local/bin:$PATH"
+export PATH="$HOME/bin:$HOME/.local/bin:$HOME/go/bin:/usr/local/go/bin:/usr/local/bin:$PATH"
 
 # ─── Oh My Zsh ─────────────────────────────────────────────────────────────────
 export ZSH="$HOME/.oh-my-zsh"
@@ -262,6 +262,22 @@ export LESSHISTFILE=-
 
 # Colorize ls output
 [ -x /usr/bin/dircolors ] && eval "$(dircolors -b)"
+
+# ─── nvm (lazy-loaded) ────────────────────────────────────────────────────────
+if [ -d "$HOME/.nvm" ]; then
+    export NVM_DIR="$HOME/.nvm"
+    nvm() {
+        unfunction nvm
+        [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+        nvm "$@"
+    }
+    # Make node/npm available without loading nvm fully
+    if [ -d "$NVM_DIR/versions/node" ]; then
+        _nvm_node_dir=$(ls -d "$NVM_DIR/versions/node"/v* 2>/dev/null | sort -V | tail -1)
+        [ -n "$_nvm_node_dir" ] && export PATH="$_nvm_node_dir/bin:$PATH"
+        unset _nvm_node_dir
+    fi
+fi
 
 # ─── Conda (lazy-loaded) ──────────────────────────────────────────────────────
 if [ -d "$HOME/miniconda3" ]; then

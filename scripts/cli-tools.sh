@@ -4,6 +4,8 @@ source "$SCRIPT_DIR/utils.sh"
 
 # =============================================================================
 # cli-tools.sh — Modern CLI tools installer
+# Uses pre-built binaries with architecture-aware downloads.
+# Falls back gracefully and registers failures for manual install.
 # =============================================================================
 
 # Total number of tools for progress tracking
@@ -25,6 +27,25 @@ install_cli_tools() {
     local failed=0
     _CLI_TOOLS_CURRENT=0
 
+    # Detect system architecture once
+    local arch deb_arch
+    arch="$(get_arch)"
+    deb_arch="$(get_deb_arch)"
+
+    # Map uname -m to common GitHub release naming conventions
+    local gh_arch="$arch"              # x86_64 or aarch64
+    local rust_target=""
+    case "$arch" in
+        x86_64)  rust_target="x86_64-unknown-linux"  ;;
+        aarch64) rust_target="aarch64-unknown-linux" ; gh_arch="arm64" ;;
+        *)
+            print_warning "Unsupported architecture: $arch — some tools may fail"
+            rust_target="$arch-unknown-linux"
+            ;;
+    esac
+
+    print_info "Detected: arch=$arch deb_arch=$deb_arch"
+
     # ── eza ──────────────────────────────────────────────────────────────────
     print_step "Installing eza (modern ls)"
     if command_exists eza; then
@@ -36,10 +57,7 @@ install_cli_tools() {
             ubuntu_ver="$(get_ubuntu_version)"
             if [[ "$ubuntu_ver" != "unknown" ]] && dpkg --compare-versions "$ubuntu_ver" "ge" "24.04" 2>/dev/null; then
                 sudo apt install -y eza
-            elif command_exists cargo; then
-                cargo install eza
             else
-                # Try apt anyway (some repos have it)
                 sudo mkdir -p /etc/apt/keyrings
                 wget -qO- https://raw.githubusercontent.com/eza-community/eza/main/deb.asc | sudo gpg --dearmor -o /etc/apt/keyrings/gierens.gpg 2>/dev/null
                 echo "deb [signed-by=/etc/apt/keyrings/gierens.gpg] http://deb.gierens.de stable main" | sudo tee /etc/apt/sources.list.d/gierens.list >/dev/null
@@ -51,6 +69,7 @@ install_cli_tools() {
             (( installed++ ))
         else
             print_error "Failed to install eza"
+            register_failure "eza" "sudo apt install eza  OR  cargo install eza"
             (( failed++ ))
         fi
     fi
@@ -64,13 +83,11 @@ install_cli_tools() {
     else
         (
             sudo apt install -y bat
-            # On Ubuntu/Debian the binary is 'batcat' — create a symlink
             if command -v batcat &>/dev/null && ! command -v bat &>/dev/null; then
                 sudo ln -sf /usr/bin/batcat /usr/local/bin/bat
             fi
         ) &>/dev/null &
         if spinner $! "Installing bat"; then
-            # Double-check symlink after spinner (subprocess may not persist)
             if command -v batcat &>/dev/null && ! command -v bat &>/dev/null; then
                 sudo ln -sf /usr/bin/batcat /usr/local/bin/bat 2>/dev/null
             fi
@@ -78,7 +95,25 @@ install_cli_tools() {
             (( installed++ ))
         else
             print_error "Failed to install bat"
+            register_failure "bat" "sudo apt install bat"
             (( failed++ ))
+        fi
+    fi
+
+    # Install Catppuccin Mocha theme for bat
+    local bat_themes_dir
+    bat_themes_dir="$(bat --config-dir 2>/dev/null || echo "$HOME/.config/bat")/themes"
+    if [[ ! -f "$bat_themes_dir/Catppuccin Mocha.tmTheme" ]]; then
+        (
+            mkdir -p "$bat_themes_dir"
+            curl -fsSL "https://raw.githubusercontent.com/catppuccin/bat/main/themes/Catppuccin%20Mocha.tmTheme" \
+                -o "$bat_themes_dir/Catppuccin Mocha.tmTheme"
+            bat cache --build > /dev/null 2>&1 || batcat cache --build > /dev/null 2>&1
+        ) &>/dev/null &
+        if spinner $! "Installing bat Catppuccin theme"; then
+            print_success "bat Catppuccin Mocha theme installed"
+        else
+            print_warning "bat theme install failed — bat will use default theme"
         fi
     fi
     _cli_progress "bat"
@@ -103,6 +138,7 @@ install_cli_tools() {
             (( installed++ ))
         else
             print_error "Failed to install fd"
+            register_failure "fd" "sudo apt install fd-find"
             (( failed++ ))
         fi
     fi
@@ -120,6 +156,7 @@ install_cli_tools() {
             (( installed++ ))
         else
             print_error "Failed to install ripgrep"
+            register_failure "ripgrep" "sudo apt install ripgrep"
             (( failed++ ))
         fi
     fi
@@ -140,6 +177,7 @@ install_cli_tools() {
             (( installed++ ))
         else
             print_error "Failed to install fzf"
+            register_failure "fzf" "git clone https://github.com/junegunn/fzf.git ~/.fzf && ~/.fzf/install"
             (( failed++ ))
         fi
     fi
@@ -157,6 +195,7 @@ install_cli_tools() {
             (( installed++ ))
         else
             print_error "Failed to install zoxide"
+            register_failure "zoxide" "curl -sSfL https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh | sh"
             (( failed++ ))
         fi
     fi
@@ -174,6 +213,7 @@ install_cli_tools() {
             (( installed++ ))
         else
             print_error "Failed to install jq"
+            register_failure "jq" "sudo apt install jq"
             (( failed++ ))
         fi
     fi
@@ -191,6 +231,7 @@ install_cli_tools() {
             (( installed++ ))
         else
             print_error "Failed to install btop"
+            register_failure "btop" "sudo apt install btop"
             (( failed++ ))
         fi
     fi
@@ -198,28 +239,27 @@ install_cli_tools() {
 
     # ── lazygit ──────────────────────────────────────────────────────────────
     print_step "Installing lazygit (git TUI)"
-    if command_exists lazygit; then
+    if ! should_install lazygit; then
         print_info "lazygit is already installed"
         (( skipped++ ))
     else
         (
             local tmp_dir
             tmp_dir="$(mktemp -d)"
-            local lazygit_version
-            lazygit_version="$(curl -sL "https://api.github.com/repos/jesseduffield/lazygit/releases/latest" | grep -oP '"tag_name":\s*"v\K[^"]*')"
-            if [[ -n "$lazygit_version" ]]; then
-                curl -fsSL "https://github.com/jesseduffield/lazygit/releases/download/v${lazygit_version}/lazygit_${lazygit_version}_Linux_x86_64.tar.gz" \
-                    -o "$tmp_dir/lazygit.tar.gz"
-                tar -xzf "$tmp_dir/lazygit.tar.gz" -C "$tmp_dir"
-                sudo install "$tmp_dir/lazygit" /usr/local/bin/lazygit
-            fi
+            local version
+            version="$(get_github_version "jesseduffield/lazygit" "${LAZYGIT_VERSION:-0.44.1}")"
+            local filename="lazygit_${version}_Linux_${arch}.tar.gz"
+            download_github_release "jesseduffield/lazygit" "$version" "$filename" "$tmp_dir/lazygit.tar.gz"
+            tar -xzf "$tmp_dir/lazygit.tar.gz" -C "$tmp_dir"
+            sudo install "$tmp_dir/lazygit" /usr/local/bin/lazygit
             rm -rf "$tmp_dir"
         ) &>/dev/null &
-        if spinner $! "Installing lazygit"; then
+        if spinner $! "Installing lazygit (verified)"; then
             print_success "lazygit installed"
             (( installed++ ))
         else
             print_error "Failed to install lazygit"
+            register_failure "lazygit" "https://github.com/jesseduffield/lazygit/releases"
             (( failed++ ))
         fi
     fi
@@ -227,20 +267,18 @@ install_cli_tools() {
 
     # ── delta ────────────────────────────────────────────────────────────────
     print_step "Installing delta (git diff pager)"
-    if command_exists delta; then
+    if ! should_install delta; then
         print_info "delta is already installed"
         (( skipped++ ))
     else
         (
             local tmp_dir
             tmp_dir="$(mktemp -d)"
-            local delta_version
-            delta_version="$(curl -sL "https://api.github.com/repos/dandavison/delta/releases/latest" | grep -oP '"tag_name":\s*"\K[^"]*')"
-            if [[ -n "$delta_version" ]]; then
-                curl -fsSL "https://github.com/dandavison/delta/releases/download/${delta_version}/git-delta_${delta_version}_amd64.deb" \
-                    -o "$tmp_dir/delta.deb"
-                sudo dpkg -i "$tmp_dir/delta.deb"
-            fi
+            local version
+            version="$(get_github_version "dandavison/delta" "${DELTA_VERSION:-0.18.2}")"
+            local filename="git-delta_${version}_${deb_arch}.deb"
+            download_github_release "dandavison/delta" "$version" "$filename" "$tmp_dir/delta.deb"
+            sudo dpkg -i "$tmp_dir/delta.deb"
             rm -rf "$tmp_dir"
         ) &>/dev/null &
         if spinner $! "Installing delta"; then
@@ -248,6 +286,7 @@ install_cli_tools() {
             (( installed++ ))
         else
             print_error "Failed to install delta"
+            register_failure "delta" "https://github.com/dandavison/delta/releases"
             (( failed++ ))
         fi
     fi
@@ -255,84 +294,84 @@ install_cli_tools() {
 
     # ── dust ─────────────────────────────────────────────────────────────────
     print_step "Installing dust (modern du)"
-    if command_exists dust; then
+    if ! should_install dust; then
         print_info "dust is already installed"
         (( skipped++ ))
     else
-        if command_exists cargo; then
-            cargo install du-dust &>/dev/null &
-            if spinner $! "Installing dust via cargo"; then
-                print_success "dust installed"
-                (( installed++ ))
-            else
-                print_error "Failed to install dust"
-                (( failed++ ))
-            fi
+        (
+            local tmp_dir
+            tmp_dir="$(mktemp -d)"
+            local version
+            version="$(get_github_version "bootandy/dust" "${DUST_VERSION:-1.1.1}")"
+            local filename="dust-v${version}-${rust_target}-gnu.tar.gz"
+            download_github_release "bootandy/dust" "$version" "$filename" "$tmp_dir/dust.tar.gz"
+            tar -xzf "$tmp_dir/dust.tar.gz" -C "$tmp_dir"
+            sudo install "$tmp_dir"/dust-*/dust /usr/local/bin/dust
+            rm -rf "$tmp_dir"
+        ) &>/dev/null &
+        if spinner $! "Installing dust"; then
+            print_success "dust installed"
+            (( installed++ ))
         else
-            (
-                local tmp_dir
-                tmp_dir="$(mktemp -d)"
-                local dust_version
-                dust_version="$(curl -sL "https://api.github.com/repos/bootandy/dust/releases/latest" | grep -oP '"tag_name":\s*"v\K[^"]*')"
-                if [[ -n "$dust_version" ]]; then
-                    curl -fsSL "https://github.com/bootandy/dust/releases/download/v${dust_version}/dust-v${dust_version}-x86_64-unknown-linux-gnu.tar.gz" \
-                        -o "$tmp_dir/dust.tar.gz"
-                    tar -xzf "$tmp_dir/dust.tar.gz" -C "$tmp_dir"
-                    sudo install "$tmp_dir"/dust-*/dust /usr/local/bin/dust
-                fi
-                rm -rf "$tmp_dir"
-            ) &>/dev/null &
-            if spinner $! "Installing dust from github release"; then
-                print_success "dust installed"
-                (( installed++ ))
-            else
-                print_error "Failed to install dust"
-                (( failed++ ))
-            fi
+            print_error "Failed to install dust"
+            register_failure "dust" "https://github.com/bootandy/dust/releases"
+            (( failed++ ))
         fi
     fi
     _cli_progress "dust"
 
     # ── glow ─────────────────────────────────────────────────────────────────
     print_step "Installing glow (markdown renderer)"
-    if command_exists glow; then
+    if ! should_install glow; then
         print_info "glow is already installed"
         (( skipped++ ))
     else
-        if command_exists go; then
-            go install github.com/charmbracelet/glow@latest &>/dev/null &
-            if spinner $! "Installing glow via go"; then
-                print_success "glow installed"
-                (( installed++ ))
-            else
-                print_error "Failed to install glow"
-                (( failed++ ))
-            fi
+        (
+            local tmp_dir
+            tmp_dir="$(mktemp -d)"
+            local version
+            version="$(get_github_version "charmbracelet/glow" "${GLOW_VERSION:-2.0.0}")"
+            local filename="glow_${version}_${deb_arch}.deb"
+            download_github_release "charmbracelet/glow" "$version" "$filename" "$tmp_dir/glow.deb"
+            sudo dpkg -i "$tmp_dir/glow.deb"
+            rm -rf "$tmp_dir"
+        ) &>/dev/null &
+        if spinner $! "Installing glow"; then
+            print_success "glow installed"
+            (( installed++ ))
         else
-            print_warning "Go not found — skipping glow (install Go first)"
-            (( skipped++ ))
+            print_error "Failed to install glow"
+            register_failure "glow" "https://github.com/charmbracelet/glow/releases"
+            (( failed++ ))
         fi
     fi
     _cli_progress "glow"
 
     # ── yazi ─────────────────────────────────────────────────────────────────
     print_step "Installing yazi (file manager)"
-    if command_exists yazi; then
+    if ! should_install yazi; then
         print_info "yazi is already installed"
         (( skipped++ ))
     else
-        if command_exists cargo; then
-            cargo install --locked yazi-fm yazi-cli &>/dev/null &
-            if spinner $! "Installing yazi via cargo (this may take a while)"; then
-                print_success "yazi installed"
-                (( installed++ ))
-            else
-                print_error "Failed to install yazi"
-                (( failed++ ))
-            fi
+        (
+            local tmp_dir
+            tmp_dir="$(mktemp -d)"
+            local version
+            version="$(get_github_version "sxyazi/yazi" "${YAZI_VERSION:-25.4.8}")"
+            local filename="yazi-${rust_target}-gnu.zip"
+            download_github_release "sxyazi/yazi" "$version" "$filename" "$tmp_dir/yazi.zip"
+            unzip -qo "$tmp_dir/yazi.zip" -d "$tmp_dir"
+            sudo install "$tmp_dir"/yazi-${rust_target}*/yazi /usr/local/bin/yazi
+            sudo install "$tmp_dir"/yazi-${rust_target}*/ya /usr/local/bin/ya 2>/dev/null || true
+            rm -rf "$tmp_dir"
+        ) &>/dev/null &
+        if spinner $! "Installing yazi"; then
+            print_success "yazi installed"
+            (( installed++ ))
         else
-            print_warning "Cargo not found — skipping yazi (install Rust first)"
-            (( skipped++ ))
+            print_error "Failed to install yazi"
+            register_failure "yazi" "https://github.com/sxyazi/yazi/releases"
+            (( failed++ ))
         fi
     fi
     _cli_progress "yazi"
@@ -349,6 +388,7 @@ install_cli_tools() {
             (( installed++ ))
         else
             print_error "Failed to install direnv"
+            register_failure "direnv" "sudo apt install direnv"
             (( failed++ ))
         fi
     fi
@@ -356,22 +396,28 @@ install_cli_tools() {
 
     # ── zellij ───────────────────────────────────────────────────────────────
     print_step "Installing zellij (terminal multiplexer)"
-    if command_exists zellij; then
+    if ! should_install zellij; then
         print_info "zellij is already installed"
         (( skipped++ ))
     else
-        if command_exists cargo; then
-            cargo install --locked zellij &>/dev/null &
-            if spinner $! "Installing zellij via cargo (this may take a while)"; then
-                print_success "zellij installed"
-                (( installed++ ))
-            else
-                print_error "Failed to install zellij"
-                (( failed++ ))
-            fi
+        (
+            local tmp_dir
+            tmp_dir="$(mktemp -d)"
+            local version
+            version="$(get_github_version "zellij-org/zellij" "${ZELLIJ_VERSION:-0.41.2}")"
+            local filename="zellij-${rust_target}-musl.tar.gz"
+            download_github_release "zellij-org/zellij" "$version" "$filename" "$tmp_dir/zellij.tar.gz"
+            tar -xzf "$tmp_dir/zellij.tar.gz" -C "$tmp_dir"
+            sudo install "$tmp_dir/zellij" /usr/local/bin/zellij
+            rm -rf "$tmp_dir"
+        ) &>/dev/null &
+        if spinner $! "Installing zellij"; then
+            print_success "zellij installed"
+            (( installed++ ))
         else
-            print_warning "Cargo not found — skipping zellij (install Rust first)"
-            (( skipped++ ))
+            print_error "Failed to install zellij"
+            register_failure "zellij" "https://github.com/zellij-org/zellij/releases"
+            (( failed++ ))
         fi
     fi
     _cli_progress "zellij"
@@ -383,7 +429,7 @@ install_cli_tools() {
     echo ""
     echo "${BOLD}${CYAN} ── CLI Tools Summary ──────────────────────────────────${RESET}"
     echo "${GREEN}   ${CHECKMARK} Installed: ${installed}${RESET}"
-    echo "${YELLOW}   ${ARROW} Skipped (already present or missing dependency): ${skipped}${RESET}"
+    echo "${YELLOW}   ${ARROW} Skipped (already present): ${skipped}${RESET}"
     [[ $failed -gt 0 ]] && echo "${RED}   ${CROSSMARK} Failed: ${failed}${RESET}"
     echo "${DIM}   Total tools: ${_CLI_TOOLS_TOTAL} | Total time: ${duration}${RESET}"
     echo ""
@@ -393,4 +439,5 @@ install_cli_tools() {
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
     ensure_sudo
     install_cli_tools
+    show_failed_tools
 fi

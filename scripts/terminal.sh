@@ -38,6 +38,7 @@ install_terminal() {
             (( installed++ ))
         else
             print_error "Failed to install Kitty"
+            register_failure "Kitty" "curl -L https://sw.kovidgoyal.net/kitty/installer.sh | sh /dev/stdin"
             (( failed++ ))
         fi
     fi
@@ -76,6 +77,7 @@ install_terminal() {
             (( installed++ ))
         else
             print_error "Failed to install Hack Nerd Font"
+            register_failure "Hack Nerd Font" "https://github.com/ryanoasis/nerd-fonts/releases"
             (( failed++ ))
         fi
     fi

@@ -73,15 +73,16 @@ install_ml_tools() {
         (
             local tmp_installer
             tmp_installer="$(mktemp /tmp/miniconda_XXXXXX.sh)"
-            curl -fsSL "https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh" -o "$tmp_installer"
+            curl -fsSL "https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-$(get_arch).sh" -o "$tmp_installer"
             bash "$tmp_installer" -b -p "$HOME/miniconda3"
             rm -f "$tmp_installer"
         ) &>/dev/null &
-        if spinner $! "Downloading and installing Miniconda"; then
+        if spinner $! "Downloading and installing Miniconda" 300; then
             print_success "Miniconda installed to ~/miniconda3"
             (( installed++ ))
         else
             print_error "Failed to install Miniconda"
+            register_failure "Miniconda" "https://docs.anaconda.com/miniconda/install/"
             (( failed++ ))
         fi
     fi
@@ -96,170 +97,60 @@ install_ml_tools() {
 
     if ! command_exists conda; then
         print_error "Conda not available — skipping conda environment setup"
+        register_failure "Conda ML env" "conda create -n ml python=3.10"
         (( failed++ ))
     else
+        # Accept Anaconda channel TOS (required since conda 26.x)
+        "$HOME/miniconda3/bin/conda" tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main &>/dev/null || true
+        "$HOME/miniconda3/bin/conda" tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r &>/dev/null || true
+
         # ── Create ml conda environment ──────────────────────────────────────
         print_step "Creating 'ml' conda environment (Python 3.10)"
         if conda env list 2>/dev/null | grep -qw "ml"; then
             print_info "Conda 'ml' environment already exists"
             (( skipped++ ))
         else
-            conda create -n ml python=3.10 -y &>/dev/null &
+            "$HOME/miniconda3/bin/conda" create -n ml python=3.10 -y &>/dev/null &
             if spinner $! "Creating conda env 'ml' with Python 3.10"; then
                 print_success "Conda 'ml' environment created"
                 (( installed++ ))
             else
                 print_error "Failed to create conda 'ml' environment"
+                register_failure "Conda ML env" "conda create -n ml python=3.10 -y"
                 (( failed++ ))
             fi
         fi
 
         # ── Install PyTorch ──────────────────────────────────────────────────
         print_step "Installing PyTorch"
+        local ml_pip="$HOME/miniconda3/envs/ml/bin/pip"
         (
-            conda activate ml 2>/dev/null || source activate ml 2>/dev/null
             if [[ "$cuda_tag" == "cpu" ]]; then
-                pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+                "$ml_pip" install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
             else
-                pip install torch torchvision torchaudio --index-url "https://download.pytorch.org/whl/${cuda_tag}"
+                "$ml_pip" install torch torchvision torchaudio --index-url "https://download.pytorch.org/whl/${cuda_tag}"
             fi
         ) &>/dev/null &
-        if spinner $! "Installing PyTorch (${cuda_tag})"; then
+        if spinner $! "Installing PyTorch (${cuda_tag})" 600; then
             print_success "PyTorch installed"
             (( installed++ ))
         else
             print_error "Failed to install PyTorch"
-            (( failed++ ))
-        fi
-
-        # ── Install HuggingFace stack ────────────────────────────────────────
-        print_step "Installing HuggingFace ecosystem"
-        (
-            conda activate ml 2>/dev/null || source activate ml 2>/dev/null
-            pip install transformers tokenizers datasets safetensors accelerate
-        ) &>/dev/null &
-        if spinner $! "Installing transformers, tokenizers, datasets, safetensors, accelerate"; then
-            print_success "HuggingFace stack installed"
-            (( installed++ ))
-        else
-            print_error "Failed to install HuggingFace stack"
-            (( failed++ ))
-        fi
-
-        # ── Install fine-tuning tools ────────────────────────────────────────
-        print_step "Installing fine-tuning tools"
-        (
-            conda activate ml 2>/dev/null || source activate ml 2>/dev/null
-            pip install bitsandbytes peft trl
-        ) &>/dev/null &
-        if spinner $! "Installing bitsandbytes, peft, trl"; then
-            print_success "Fine-tuning tools installed"
-            (( installed++ ))
-        else
-            print_error "Failed to install fine-tuning tools"
-            (( failed++ ))
-        fi
-
-        # ── Install flash-attn ───────────────────────────────────────────────
-        print_step "Installing flash-attn"
-        if [[ "$cuda_tag" == "cpu" ]]; then
-            print_warning "Skipping flash-attn — requires CUDA"
-            (( skipped++ ))
-        else
-            (
-                conda activate ml 2>/dev/null || source activate ml 2>/dev/null
-                pip install flash-attn --no-build-isolation
-            ) &>/dev/null &
-            if spinner $! "Installing flash-attn (compilation may take several minutes)"; then
-                print_success "flash-attn installed"
-                (( installed++ ))
-            else
-                print_error "Failed to install flash-attn (may need matching CUDA toolkit)"
-                (( failed++ ))
-            fi
-        fi
-
-        # ── Install data science packages ────────────────────────────────────
-        print_step "Installing data science packages"
-        (
-            conda activate ml 2>/dev/null || source activate ml 2>/dev/null
-            pip install scikit-learn pandas numpy matplotlib
-        ) &>/dev/null &
-        if spinner $! "Installing scikit-learn, pandas, numpy, matplotlib"; then
-            print_success "Data science packages installed"
-            (( installed++ ))
-        else
-            print_error "Failed to install data science packages"
+            register_failure "PyTorch" "pip install torch torchvision torchaudio"
             (( failed++ ))
         fi
 
         # ── Install JupyterLab ───────────────────────────────────────────────
         print_step "Installing JupyterLab"
         (
-            conda activate ml 2>/dev/null || source activate ml 2>/dev/null
-            pip install jupyterlab
+            "$ml_pip" install jupyterlab
         ) &>/dev/null &
         if spinner $! "Installing JupyterLab"; then
             print_success "JupyterLab installed"
             (( installed++ ))
         else
             print_error "Failed to install JupyterLab"
-            (( failed++ ))
-        fi
-
-        # ── Install TensorBoard ──────────────────────────────────────────────
-        print_step "Installing TensorBoard"
-        (
-            conda activate ml 2>/dev/null || source activate ml 2>/dev/null
-            pip install tensorboard
-        ) &>/dev/null &
-        if spinner $! "Installing TensorBoard"; then
-            print_success "TensorBoard installed"
-            (( installed++ ))
-        else
-            print_error "Failed to install TensorBoard"
-            (( failed++ ))
-        fi
-
-        # ── Install nvitop (in conda env) ────────────────────────────────────
-        print_step "Installing nvitop"
-        (
-            conda activate ml 2>/dev/null || source activate ml 2>/dev/null
-            pip install nvitop
-        ) &>/dev/null &
-        if spinner $! "Installing nvitop"; then
-            print_success "nvitop installed"
-            (( installed++ ))
-        else
-            print_error "Failed to install nvitop"
-            (( failed++ ))
-        fi
-
-        # ── Install ONNX ────────────────────────────────────────────────────
-        print_step "Installing ONNX Runtime"
-        (
-            conda activate ml 2>/dev/null || source activate ml 2>/dev/null
-            pip install onnx onnxruntime-gpu
-        ) &>/dev/null &
-        if spinner $! "Installing onnx, onnxruntime-gpu"; then
-            print_success "ONNX Runtime installed"
-            (( installed++ ))
-        else
-            print_error "Failed to install ONNX Runtime"
-            (( failed++ ))
-        fi
-
-        # ── Install sentence-transformers ────────────────────────────────────
-        print_step "Installing sentence-transformers"
-        (
-            conda activate ml 2>/dev/null || source activate ml 2>/dev/null
-            pip install sentence-transformers
-        ) &>/dev/null &
-        if spinner $! "Installing sentence-transformers"; then
-            print_success "sentence-transformers installed"
-            (( installed++ ))
-        else
-            print_error "Failed to install sentence-transformers"
+            register_failure "JupyterLab" "pip install jupyterlab"
             (( failed++ ))
         fi
     fi
@@ -270,12 +161,20 @@ install_ml_tools() {
         print_info "Ollama is already installed"
         (( skipped++ ))
     else
-        curl -fsSL https://ollama.com/install.sh | sh &>/dev/null &
-        if spinner $! "Installing Ollama"; then
+        # The ollama install script may exit non-zero if systemd is unavailable
+        # (e.g. Docker), but the binary still gets installed successfully.
+        (curl -fsSL https://ollama.com/install.sh | sh) &>/dev/null &
+        spinner $! "Installing Ollama"
+        if command_exists ollama || [[ -f /usr/local/bin/ollama ]]; then
             print_success "Ollama installed"
             (( installed++ ))
+            # Note: without systemd, ollama won't auto-start as a service
+            if ! pidof systemd &>/dev/null; then
+                print_info "No systemd detected — run 'ollama serve' manually to start"
+            fi
         else
             print_error "Failed to install Ollama"
+            register_failure "Ollama" "curl -fsSL https://ollama.com/install.sh | sh"
             (( failed++ ))
         fi
     fi
@@ -293,6 +192,7 @@ install_ml_tools() {
                 (( installed++ ))
             else
                 print_error "Failed to install nvitop via uv"
+                register_failure "nvitop (standalone)" "uv tool install nvitop  OR  pipx install nvitop"
                 (( failed++ ))
             fi
         elif command_exists pipx; then
@@ -302,6 +202,7 @@ install_ml_tools() {
                 (( installed++ ))
             else
                 print_error "Failed to install nvitop via pipx"
+                register_failure "nvitop (standalone)" "pipx install nvitop"
                 (( failed++ ))
             fi
         else

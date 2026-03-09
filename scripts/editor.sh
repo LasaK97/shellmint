@@ -24,9 +24,23 @@ install_editor() {
     else
         (
             mkdir -p "$HOME/.local/bin"
-            curl -fsSL "https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.appimage" \
-                -o "$HOME/.local/bin/nvim"
+            local nvim_tag="${NEOVIM_VERSION:-stable}"
+            local nvim_url="https://github.com/neovim/neovim/releases/download/${nvim_tag}/nvim-linux-$(get_arch).appimage"
+            curl -fsSL "$nvim_url" -o "$HOME/.local/bin/nvim"
             chmod +x "$HOME/.local/bin/nvim"
+
+            # Test if AppImage works (FUSE required). If not, extract it.
+            if ! "$HOME/.local/bin/nvim" --version &>/dev/null; then
+                local tmp_dir
+                tmp_dir="$(mktemp -d)"
+                cd "$tmp_dir"
+                "$HOME/.local/bin/nvim" --appimage-extract &>/dev/null
+                rm -f "$HOME/.local/bin/nvim"
+                mv squashfs-root "$HOME/.local/nvim-extracted"
+                ln -sf "$HOME/.local/nvim-extracted/usr/bin/nvim" "$HOME/.local/bin/nvim"
+                cd - > /dev/null
+                rm -rf "$tmp_dir"
+            fi
 
             # Create symlink in /usr/local/bin for system-wide access
             sudo ln -sf "$HOME/.local/bin/nvim" /usr/local/bin/nvim 2>/dev/null || true
@@ -36,6 +50,7 @@ install_editor() {
             (( installed++ ))
         else
             print_error "Failed to install Neovim"
+            register_failure "Neovim" "https://github.com/neovim/neovim/releases"
             (( failed++ ))
         fi
     fi

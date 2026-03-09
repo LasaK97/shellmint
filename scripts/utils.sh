@@ -11,6 +11,18 @@
 [[ -n "${_UTILS_SH_LOADED:-}" ]] && return 0
 _UTILS_SH_LOADED=1
 
+# Global: tracks the PID of the current spinner background process
+# so interrupt handlers can kill it on Ctrl+C
+_SPINNER_BG_PID=""
+
+# Source pinned tool versions (if available)
+_UTILS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_VERSIONS_CONF="${_UTILS_DIR}/../tool-versions.conf"
+if [[ -f "$_VERSIONS_CONF" ]]; then
+    # shellcheck disable=SC1090
+    source "$_VERSIONS_CONF"
+fi
+
 # =============================================================================
 # COLOR CONSTANTS (tput-based for portability)
 # =============================================================================
@@ -85,7 +97,7 @@ print_header() {
 # print_step "text"
 # Prints a step message with arrow prefix in cyan.
 print_step() {
-    echo "${CYAN}${BOLD} ${ARROW} ${RESET}${CYAN}$1${RESET}"
+    echo "${MAGENTA}${BOLD} ${ARROW} ${RESET}${MAGENTA}$1${RESET}"
 }
 
 # print_success "text"
@@ -119,6 +131,21 @@ print_package() {
 }
 
 # =============================================================================
+# BOX LINE HELPER (cursor-positioned right border)
+# =============================================================================
+
+# _box_line COLOR "content"
+# Prints a single line inside a Unicode box. Uses ANSI cursor positioning
+# (CSI 66G) to place the right ║ at exactly column 66 — no display-width
+# calculation needed, works with emojis, ANSI codes, and wide characters.
+_box_line() {
+    local color="$1"
+    local content="$2"
+    # Print left border + content, then jump cursor to column 66 for right border
+    printf "  %s║%s%s\033[66G%s║%s\n" "$color" "$RESET" "$content" "$color" "$RESET"
+}
+
+# =============================================================================
 # SPINNER FUNCTION
 # =============================================================================
 
@@ -129,10 +156,14 @@ print_package() {
 spinner() {
     local pid="$1"
     local message="$2"
+    local timeout="${3:-0}"  # Optional timeout in seconds (0 = no timeout)
     local spin_chars=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
     local start_time
     start_time=$(date +%s)
     local i=0
+
+    # Track the background PID so interrupt handlers can kill it
+    _SPINNER_BG_PID="$pid"
 
     # Hide cursor
     tput civis 2>/dev/null || true
@@ -141,8 +172,21 @@ spinner() {
         local now
         now=$(date +%s)
         local elapsed=$(( now - start_time ))
+
+        # Check timeout
+        if [[ "$timeout" -gt 0 ]] && [[ "$elapsed" -ge "$timeout" ]]; then
+            pkill -P "$pid" 2>/dev/null || true
+            kill "$pid" 2>/dev/null || true
+            wait "$pid" 2>/dev/null || true
+            printf "\r\033[K"
+            echo "${RED}${BOLD} ${CROSSMARK} ${RESET}${message} ${DIM}(timed out after $(format_duration "$timeout"))${RESET}"
+            tput cnorm 2>/dev/null || true
+            _SPINNER_BG_PID=""
+            return 1
+        fi
+
         local frame="${spin_chars[$((i % ${#spin_chars[@]}))]}"
-        printf "\r${CYAN}${BOLD} %s ${RESET}%s ${DIM}(%ds)${RESET}" "$frame" "$message" "$elapsed"
+        printf "\r${MAGENTA}${BOLD} %s ${RESET}%s ${DIM}(%ds)${RESET}" "$frame" "$message" "$elapsed"
         i=$(( i + 1 ))
         sleep 0.1
     done
@@ -167,8 +211,92 @@ spinner() {
 
     # Restore cursor
     tput cnorm 2>/dev/null || true
+    _SPINNER_BG_PID=""
 
     return "$exit_code"
+}
+
+# =============================================================================
+# SPINNER WITH LIVE LOG TAIL
+# =============================================================================
+
+# spinner_logged PID "message" "logfile"
+# Like spinner(), but shows the last line of a log file below the spinner.
+# On completion, clears the log lines so only the result remains.
+spinner_logged() {
+    local pid="$1"
+    local message="$2"
+    local logfile="$3"
+    local spin_chars=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
+    local start_time
+    start_time=$(date +%s)
+    local i=0
+
+    _SPINNER_BG_PID="$pid"
+    tput civis 2>/dev/null || true
+
+    while kill -0 "$pid" 2>/dev/null; do
+        local now
+        now=$(date +%s)
+        local elapsed=$(( now - start_time ))
+        local frame="${spin_chars[$((i % ${#spin_chars[@]}))]}"
+        printf "\r\033[K${CYAN}${BOLD} %s ${RESET}%s ${DIM}(%ds)${RESET}" "$frame" "$message" "$elapsed"
+        # Show last log line if available
+        if [[ -f "$logfile" ]]; then
+            local last_line
+            last_line=$(tail -1 "$logfile" 2>/dev/null | cut -c1-70)
+            if [[ -n "$last_line" ]]; then
+                printf "\n\033[K${DIM}   └─ %s${RESET}" "$last_line"
+                printf "\033[1A"  # Move cursor back up
+            fi
+        fi
+        i=$(( i + 1 ))
+        sleep 0.1
+    done
+
+    wait "$pid" 2>/dev/null
+    local exit_code=$?
+
+    local end_time
+    end_time=$(date +%s)
+    local total_elapsed=$(( end_time - start_time ))
+    local duration
+    duration="$(format_duration "$total_elapsed")"
+
+    # Clear spinner line + log line below
+    printf "\r\033[K"
+    printf "\n\033[K"
+    printf "\033[1A"
+    printf "\r\033[K"
+
+    if [[ $exit_code -eq 0 ]]; then
+        echo "${GREEN}${BOLD} ${CHECKMARK} ${RESET}${message} ${DIM}(${duration})${RESET}"
+    else
+        echo "${RED}${BOLD} ${CROSSMARK} ${RESET}${message} ${DIM}(${duration})${RESET}"
+    fi
+
+    tput cnorm 2>/dev/null || true
+    _SPINNER_BG_PID=""
+    return "$exit_code"
+}
+
+# run_logged "message" command [args...]
+# Runs a command with output logged to a temp file, showing a spinner with
+# live log tail. Cleans up the temp file on completion.
+run_logged() {
+    local message="$1"
+    shift
+    local tmplog
+    tmplog="$(mktemp /tmp/shellmint-log.XXXXXX)"
+
+    "$@" > "$tmplog" 2>&1 &
+    local pid=$!
+
+    spinner_logged "$pid" "$message" "$tmplog"
+    local rc=$?
+
+    rm -f "$tmplog"
+    return "$rc"
 }
 
 # =============================================================================
@@ -256,6 +384,17 @@ command_exists() {
     command -v "$1" &>/dev/null
 }
 
+# should_install "tool_name"
+# Returns 0 (true) if the tool should be installed.
+# In update mode, always returns 0 (force re-install).
+# Otherwise, returns 1 (skip) if the tool is already present.
+should_install() {
+    if [[ "${UPDATE_MODE:-0}" -eq 1 ]]; then
+        return 0
+    fi
+    ! command_exists "$1"
+}
+
 # is_ubuntu_debian
 # Returns 0 if running on Ubuntu or Debian.
 is_ubuntu_debian() {
@@ -272,6 +411,189 @@ get_ubuntu_version() {
     else
         echo "unknown"
     fi
+}
+
+# =============================================================================
+# ARCHITECTURE & PLATFORM DETECTION
+# =============================================================================
+
+# Cached values (computed once)
+_SM_ARCH=""
+_SM_DEB_ARCH=""
+_SM_OS_VERSION=""
+_SM_OS_CODENAME=""
+
+# get_arch
+# Returns the system architecture in the format used by most GitHub releases.
+# e.g., "x86_64", "aarch64"
+get_arch() {
+    if [[ -z "$_SM_ARCH" ]]; then
+        _SM_ARCH="$(uname -m)"
+    fi
+    echo "$_SM_ARCH"
+}
+
+# get_deb_arch
+# Returns the Debian architecture label: "amd64", "arm64", etc.
+get_deb_arch() {
+    if [[ -z "$_SM_DEB_ARCH" ]]; then
+        _SM_DEB_ARCH="$(dpkg --print-architecture 2>/dev/null || echo "amd64")"
+    fi
+    echo "$_SM_DEB_ARCH"
+}
+
+# get_os_codename
+# Returns the OS codename (e.g., "jammy", "noble", "bookworm").
+get_os_codename() {
+    if [[ -z "$_SM_OS_CODENAME" ]]; then
+        if [[ -f /etc/os-release ]]; then
+            # shellcheck disable=SC1091
+            source /etc/os-release
+            _SM_OS_CODENAME="${UBUNTU_CODENAME:-${VERSION_CODENAME:-unknown}}"
+        else
+            _SM_OS_CODENAME="unknown"
+        fi
+    fi
+    echo "$_SM_OS_CODENAME"
+}
+
+# get_github_version "owner/repo" "fallback_version"
+# Fetches the latest release tag from GitHub API.
+# Falls back to the provided version if API is unreachable or rate-limited.
+# Strips leading "v" from the tag.
+get_github_version() {
+    local repo="$1"
+    local fallback="$2"
+    local version=""
+
+    version="$(curl -sL --max-time 10 "https://api.github.com/repos/${repo}/releases/latest" 2>/dev/null \
+        | grep -oP '"tag_name":\s*"v?\K[^"]*' || echo "")"
+
+    if [[ -z "$version" ]]; then
+        version="$fallback"
+    fi
+    echo "$version"
+}
+
+# =============================================================================
+# SECURE DOWNLOAD HELPERS
+# =============================================================================
+
+# download_github_release "owner/repo" "version" "asset_filename" "dest_path"
+# Downloads a GitHub release asset and verifies its SHA256 checksum if available.
+# Looks for checksums in: SHA256SUMS, sha256sums.txt, checksums.txt
+# Falls back to unverified download with a warning if no checksums found.
+download_github_release() {
+    local repo="$1"
+    local version="$2"
+    local asset="$3"
+    local dest="$4"
+    local base_url="https://github.com/${repo}/releases/download"
+    local tag_prefix="v"
+
+    # Some repos don't use v prefix (e.g., delta)
+    if [[ "$version" =~ ^[0-9] ]]; then
+        # Try with v prefix first, detect from repo convention
+        local check_url="${base_url}/v${version}/${asset}"
+        if curl --head --silent --fail "$check_url" &>/dev/null; then
+            tag_prefix="v"
+        else
+            tag_prefix=""
+        fi
+    fi
+
+    local download_url="${base_url}/${tag_prefix}${version}/${asset}"
+
+    # Download the asset
+    curl -fsSL "$download_url" -o "$dest" || return 1
+
+    # Try to verify checksum
+    local checksum_names=("SHA256SUMS" "sha256sums.txt" "checksums.txt" "${asset}.sha256")
+    local tmpdir
+    tmpdir="$(dirname "$dest")"
+    local verified=0
+
+    for cs_name in "${checksum_names[@]}"; do
+        local cs_url="${base_url}/${tag_prefix}${version}/${cs_name}"
+        local cs_file="${tmpdir}/${cs_name}"
+        if curl -fsSL "$cs_url" -o "$cs_file" 2>/dev/null; then
+            # Extract the expected hash for our asset
+            local expected_hash
+            expected_hash="$(grep -i "$(basename "$asset")" "$cs_file" 2>/dev/null | awk '{print $1}' | head -1)"
+            if [[ -n "$expected_hash" ]]; then
+                local actual_hash
+                actual_hash="$(sha256sum "$dest" | awk '{print $1}')"
+                if [[ "$actual_hash" == "$expected_hash" ]]; then
+                    verified=1
+                else
+                    print_error "Checksum mismatch for $asset!"
+                    print_error "  Expected: $expected_hash"
+                    print_error "  Got:      $actual_hash"
+                    rm -f "$dest" "$cs_file"
+                    return 1
+                fi
+            fi
+            rm -f "$cs_file"
+            break
+        fi
+    done
+
+    if [[ $verified -eq 0 ]]; then
+        print_warning "No checksum available for $asset — installed without verification"
+    fi
+
+    return 0
+}
+
+# =============================================================================
+# FAILED TOOLS TRACKER
+# =============================================================================
+# Uses a temp file so failures persist across subshells.
+# Each line stores: "tool_name|manual_install_command"
+
+_FAILED_TOOLS_FILE="${TMPDIR:-/tmp}/shellmint-failed-$$.txt"
+: > "$_FAILED_TOOLS_FILE"   # Create/clear on source
+
+# register_failure "tool_name" "manual install command or URL"
+# Call this whenever a tool fails to install.
+register_failure() {
+    local name="$1"
+    local manual="$2"
+    echo "${name}|${manual}" >> "$_FAILED_TOOLS_FILE"
+}
+
+# show_failed_tools
+# Prints a boxed summary of all failed tools with manual install instructions.
+# Returns 0 if nothing failed, 1 if there were failures.
+show_failed_tools() {
+    if [[ ! -s "$_FAILED_TOOLS_FILE" ]]; then
+        return 0
+    fi
+
+    echo ""
+    print_colored "$RED" "  ╔══════════════════════════════════════════════════════════════╗"
+    print_colored "$RED" "  ║              Tools That Need Manual Installation             ║"
+    print_colored "$RED" "  ╠══════════════════════════════════════════════════════════════╣"
+    print_colored "$RED" "  ║                                                              ║"
+
+    while IFS='|' read -r name manual; do
+        [[ -z "$name" ]] && continue
+        _box_line "$RED" "  ${RED}${CROSSMARK}${RESET} ${BOLD}${name}${RESET}"
+        # Wrap long commands across lines
+        while [[ ${#manual} -gt 54 ]]; do
+            _box_line "$RED" "    ${DIM}${manual:0:54}${RESET}"
+            manual="${manual:54}"
+        done
+        _box_line "$RED" "    ${DIM}${manual}${RESET}"
+        _box_line "$RED" ""
+    done < "$_FAILED_TOOLS_FILE"
+
+    print_colored "$RED" "  ╚══════════════════════════════════════════════════════════════╝"
+    echo ""
+
+    # Cleanup
+    rm -f "$_FAILED_TOOLS_FILE"
+    return 1
 }
 
 # ensure_sudo

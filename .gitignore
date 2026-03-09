@@ -1,3 +1,25 @@
+# Installer logs
 *.log
+
+# Config backups created by ShellMint
 *.backup.*
+
+# OS
 .DS_Store
+Thumbs.db
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Temporary
+tmp/
+temp/
+*.tmp
+
+# Environment
+.env
+.env.local

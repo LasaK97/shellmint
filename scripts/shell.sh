@@ -22,7 +22,10 @@ _install_omz_plugin() {
     fi
 
     git clone --depth=1 "https://github.com/$repo.git" "$dest" &>/dev/null &
-    spinner $! "Cloning $name"
+    if ! spinner $! "Cloning $name"; then
+        register_failure "$name" "git clone https://github.com/$repo.git $dest"
+        return 1
+    fi
 }
 
 # =============================================================================
@@ -48,6 +51,7 @@ install_shell() {
             (( installed++ ))
         else
             print_error "Failed to install zsh"
+            register_failure "zsh" "sudo apt install zsh"
             (( failed++ ))
         fi
     fi
@@ -59,10 +63,10 @@ install_shell() {
     if [[ "$current_shell" == *"zsh"* ]]; then
         print_info "Zsh is already the default shell"
     else
-        if chsh -s "$(which zsh)" 2>/dev/null; then
+        if sudo chsh -s "$(which zsh)" "$USER" 2>/dev/null; then
             print_success "Default shell changed to zsh"
         else
-            print_warning "Could not change default shell — you may need to run: chsh -s \$(which zsh)"
+            print_warning "Could not change default shell — you may need to run: sudo chsh -s \$(which zsh) \$USER"
         fi
     fi
 
@@ -78,6 +82,7 @@ install_shell() {
             (( installed++ ))
         else
             print_error "Failed to install Oh My Zsh"
+            register_failure "Oh My Zsh" "sh -c \"\$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)\""
             (( failed++ ))
         fi
     fi
@@ -89,7 +94,7 @@ install_shell() {
     _install_omz_plugin "fast-syntax-highlighting"      "zdharma-continuum/fast-syntax-highlighting" && (( installed++ )) || (( failed++ ))
     _install_omz_plugin "zsh-history-substring-search"  "zsh-users/zsh-history-substring-search"  && (( installed++ )) || (( failed++ ))
     _install_omz_plugin "zsh-autopair"                  "hlissner/zsh-autopair"                   && (( installed++ )) || (( failed++ ))
-    _install_omz_plugin "zsh-you-should-use"            "MichaelAqworthy/zsh-you-should-use"      && (( installed++ )) || (( failed++ ))
+    _install_omz_plugin "zsh-you-should-use"            "MichaelAquilina/zsh-you-should-use"      && (( installed++ )) || (( failed++ ))
     _install_omz_plugin "zsh-completions"               "zsh-users/zsh-completions"               && (( installed++ )) || (( failed++ ))
     _install_omz_plugin "fzf-tab"                       "Aloxaf/fzf-tab"                          && (( installed++ )) || (( failed++ ))
 
@@ -105,6 +110,7 @@ install_shell() {
             (( installed++ ))
         else
             print_error "Failed to install Oh My Posh"
+            register_failure "Oh My Posh" "curl -s https://ohmyposh.dev/install.sh | bash -s"
             (( failed++ ))
         fi
     fi
@@ -115,12 +121,26 @@ install_shell() {
         print_info "Atuin is already installed"
         (( skipped++ ))
     else
-        curl --proto '=https' --tlsv1.2 -LsSf https://setup.atuin.sh | sh &>/dev/null &
+        (
+            local tmp_dir
+            tmp_dir="$(mktemp -d)"
+            local arch
+            arch="$(get_arch)"
+            local version
+            version="$(get_github_version "atuinsh/atuin" "${ATUIN_VERSION:-18.4.0}")"
+            local filename="atuin-${arch}-unknown-linux-musl.tar.gz"
+            download_github_release "atuinsh/atuin" "$version" "$filename" "$tmp_dir/atuin.tar.gz"
+            tar -xzf "$tmp_dir/atuin.tar.gz" -C "$tmp_dir"
+            sudo install "$tmp_dir"/atuin-${arch}-unknown-linux-musl/atuin /usr/local/bin/atuin 2>/dev/null || \
+                sudo install "$tmp_dir/atuin" /usr/local/bin/atuin 2>/dev/null
+            rm -rf "$tmp_dir"
+        ) &>/dev/null &
         if spinner $! "Installing Atuin"; then
             print_success "Atuin installed"
             (( installed++ ))
         else
             print_error "Failed to install Atuin"
+            register_failure "Atuin" "https://github.com/atuinsh/atuin/releases"
             (( failed++ ))
         fi
     fi
