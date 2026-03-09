@@ -20,8 +20,7 @@ jobs:
         with:
           scandir: '.'
           severity: warning
-          exclude: './configs'
-          additional_files: 'install.sh uninstall.sh'
+          ignore_names: '.zshrc .zshenv'
 
   dry-run:
     name: Dry Run Test
