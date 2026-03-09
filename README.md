@@ -485,11 +485,7 @@ Uninstall log is saved to `~/.shellmint-uninstall.log`.
 
 ## Contributing
 
-Contributions are welcome! Feel free to:
-- Add support for more distros (Fedora, Arch)
-- Add new tool categories
-- Improve the installer UI
-- Fix bugs
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on reporting bugs, suggesting features, and submitting pull requests.
 
 ## Acknowledgments
 
