@@ -931,6 +931,7 @@ main() {
     parse_args "$@"
 
     # Ensure scroll region is reset on exit (normal or error)
+    local rc=0  # used by EXIT trap
     trap 'rc=$?; reset_scroll_region 2>/dev/null || true; tput cnorm 2>/dev/null || true; exit $rc' EXIT
 
     # Apply pre-selected categories if provided via --categories
