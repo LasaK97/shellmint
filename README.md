@@ -7,10 +7,11 @@
 </p>
 
 <h1 align="center">🍃 ShellMint</h1>
+<p align="center"><em>One-Command Terminal & Dev Environment Setup</em></p>
 
 <p align="center">
-  <strong>A modern, beautiful terminal environment for developers and ML engineers.</strong><br>
-  One command to set up a fully configured terminal with 30+ curated tools.
+  <strong>Transform your terminal into a beautiful, modern dev environment with one command.</strong><br>
+  30+ curated tools including Zsh, Neovim, Docker, and PyTorch. Beautifully themed out of the box.
 </p>
 
 <p align="center">
