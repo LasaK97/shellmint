@@ -1,4 +1,5 @@
 <p align="center">
+  <a href="https://github.com/LasaK97/shellmint/actions/workflows/ci.yml"><img src="https://github.com/LasaK97/shellmint/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/Platform-Ubuntu%20%7C%20Debian-E95420?style=for-the-badge&logo=ubuntu&logoColor=white" alt="Platform">
   <img src="https://img.shields.io/badge/Shell-Zsh-4EAA25?style=for-the-badge&logo=gnu-bash&logoColor=white" alt="Shell">
   <img src="https://img.shields.io/badge/Theme-Catppuccin%20Mocha-cba6f7?style=for-the-badge" alt="Theme">
@@ -18,31 +19,35 @@
 </p>
 
 <p align="center">
+  <img src="assets/demo/shellmint-demo.gif" alt="ShellMint Demo" width="900">
+</p>
+
+<p align="center">
   <img src="assets/pic.png" alt="Terminal Setup Preview" width="900">
 </p>
 
-<table>
-  <tr>
-    <td align="center" width="50%">
-      <img src="assets/menu.png" alt="Category Selection Menu" width="400"><br>
-      <em>Interactive category selector</em>
-    </td>
-    <td align="center" width="50%">
-      <img src="assets/start_installer.png" alt="System Check" width="400"><br>
-      <em>System check & prerequisites</em>
-    </td>
-  </tr>
-  <tr>
-    <td align="center" width="50%">
-      <img src="assets/installing.png" alt="Installation Progress" width="400"><br>
-      <em>Progress bars & spinners</em>
-    </td>
-    <td align="center" width="50%">
-      <img src="assets/final.png" alt="Installation Complete" width="400"><br>
-      <em>Results & keybinding cheatsheet</em>
-    </td>
-  </tr>
-</table>
+<div align="center">
+  <table>
+    <tr>
+      <td align="center">
+        <img src="assets/menu.png" alt="Category Selection Menu" width="280"><br>
+        <em>Category selector</em>
+      </td>
+      <td align="center">
+        <img src="assets/start_installer.png" alt="System Check" width="280"><br>
+        <em>System check</em>
+      </td>
+      <td align="center">
+        <img src="assets/installing.png" alt="Installation Progress" width="280"><br>
+        <em>Installation progress</em>
+      </td>
+      <td align="center">
+        <img src="assets/final.png" alt="Installation Complete" width="280"><br>
+        <em>Completion summary</em>
+      </td>
+    </tr>
+  </table>
+</div>
 
 ---
 
