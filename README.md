@@ -487,7 +487,7 @@ Uninstall log is saved to `~/.shellmint-uninstall.log`.
 | Ubuntu | 22.04 LTS (Jammy) | x86_64 | ✅ Tested |
 | Debian | 12 (Bookworm) | x86_64 | ✅ Tested |
 | Linux Mint | 22 | x86_64 | ✅ Tested |
-| Pop!_OS | 22.04 / 24.04 | x86_64 | ✅ Expected |
+| Pop!_OS | 22.04 / 24.04 | x86_64 | ✅ Tested |
 
 ## Contributing
 
